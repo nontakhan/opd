@@ -11,13 +11,13 @@ require_once '../includes/navbar.php';
 $conn = getMainDBConnection();
 
 // อ่านค่าจาก GET (default: เดือนปัจจุบัน, รายงานแบบ detailed, ทุกประเภทกิจกรรม)
-$start_date    = isset($_GET['start_date']) ? trim($_GET['start_date']) : date('Y-m-01');
-$end_date      = isset($_GET['end_date']) ? trim($_GET['end_date']) : date('Y-m-d');
+$start_date = isset($_GET['start_date']) ? trim($_GET['start_date']) : date('Y-m-01');
+$end_date = isset($_GET['end_date']) ? trim($_GET['end_date']) : date('Y-m-d');
 $category_code = isset($_GET['category_code']) ? $_GET['category_code'] : 'ALL'; // ALL, OPD, INJ
-$report_type   = isset($_GET['report_type']) ? $_GET['report_type'] : 'detail';  // detail, summary
+$report_type = isset($_GET['report_type']) ? $_GET['report_type'] : 'detail';  // detail, summary
 $nurse_id = isset($_GET['nurse_id']) ? $_GET['nurse_id'] : 'ALL';
 
-$detail_rows  = [];
+$detail_rows = [];
 $summary_rows = [];
 
 
@@ -45,12 +45,12 @@ if ($report_type === 'detail') {
     ";
 
     $params = [$start_date, $end_date];
-    $types  = 'ss';
+    $types = 'ss';
 
     if ($category_code !== 'ALL') {
         $sql .= " AND ac.code = ? ";
         $params[] = $category_code;
-        $types   .= 's';
+        $types .= 's';
     }
 
     $sql .= "
@@ -86,12 +86,12 @@ else {
     ";
 
     $params = [$start_date, $end_date];
-    $types  = 'ss';
+    $types = 'ss';
 
     if ($category_code !== 'ALL') {
         $sql .= " AND ac.code = ? ";
         $params[] = $category_code;
-        $types   .= 's';
+        $types .= 's';
     }
 
     $sql .= "
@@ -120,190 +120,198 @@ $conn->close();
 <script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
 
 <style>
-.report-container {
-    max-width: 1200px;
-    margin: 20px auto 40px;
-    padding: 0 16px;
-    font-family: "Sarabun", sans-serif;
-}
+    .report-container {
+        max-width: 1200px;
+        margin: 20px auto 40px;
+        padding: 0 16px;
+        font-family: "Sarabun", sans-serif;
+    }
 
-.report-header {
-    margin-bottom: 10px;
-}
+    .report-header {
+        margin-bottom: 10px;
+    }
 
-.report-title {
-    font-size: 1.3rem;
-    font-weight: 700;
-    margin-bottom: 4px;
-}
+    .report-title {
+        font-size: 1.3rem;
+        font-weight: 700;
+        margin-bottom: 4px;
+    }
 
-.report-subtitle {
-    font-size: 0.9rem;
-    color: #6b7280;
-}
+    .report-subtitle {
+        font-size: 0.9rem;
+        color: #6b7280;
+    }
 
-/* การ์ดฟิลเตอร์ */
-.filter-card {
-    margin-top: 12px;
-    padding: 14px 16px;
-    border-radius: 10px;
-    background-color: #ffffff;
-    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.06);
-    border: 1px solid #e2e8f0;
-}
+    /* การ์ดฟิลเตอร์ */
+    .filter-card {
+        margin-top: 12px;
+        padding: 14px 16px;
+        border-radius: 10px;
+        background-color: #ffffff;
+        box-shadow: 0 4px 12px rgba(15, 23, 42, 0.06);
+        border: 1px solid #e2e8f0;
+    }
 
-.filter-row {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px 16px;
-    margin-bottom: 4px;
-}
-
-.filter-group {
-    flex: 1 1 190px;
-    min-width: 180px;
-}
-
-.filter-group label {
-    display: block;
-    margin-bottom: 4px;
-    font-size: 0.9rem;
-}
-
-.filter-group input[type="date"],
-.filter-group select {
-    width: 100%;
-    padding: 6px 8px;
-    border-radius: 6px;
-    border: 1px solid #cbd5e1;
-    font-size: 0.9rem;
-    box-sizing: border-box;
-}
-
-.filter-actions {
-    flex: 0 0 150px;
-    display: flex;
-    align-items: flex-end;
-}
-
-.btn {
-    display: inline-block;
-    padding: 7px 14px;
-    border-radius: 8px;
-    border: none;
-    cursor: pointer;
-    font-size: 0.9rem;
-}
-
-.btn-primary {
-    background: linear-gradient(135deg, #2563eb, #4f46e5);
-    color: #fff;
-}
-.btn-primary:hover {
-    filter: brightness(1.04);
-}
-
-/* การ์ดตาราง */
-.report-card {
-    margin-top: 16px;
-    padding: 14px 16px 18px;
-    border-radius: 10px;
-    background-color: #ffffff;
-    box-shadow: 0 4px 14px rgba(15, 23, 42, 0.07);
-    border: 1px solid #e2e8f0;
-}
-
-.report-card-title {
-    font-size: 1rem;
-    font-weight: 600;
-    margin-bottom: 8px;
-}
-
-/* ตาราง DataTables */
-table.dataTable thead th {
-    background-color: #f9fafb;
-    border-bottom: 1px solid #e5e7eb;
-    padding: 8px 10px;
-    font-size: 0.86rem;
-}
-table.dataTable tbody td {
-    padding: 6px 10px;
-    font-size: 0.84rem;
-}
-table.dataTable tbody tr:nth-child(even) {
-    background-color: #fdfdfd;
-}
-
-/* badge */
-.badge {
-    display: inline-block;
-    padding: 2px 8px;
-    border-radius: 999px;
-    font-size: 0.75rem;
-    color: #fff;
-    background-color: #17a2b8;
-}
-.badge-opd {
-    background-color: #22c55e;
-}
-.badge-inj {
-    background-color: #facc15;
-    color: #1f2937;
-}
-
-/* info "ไม่พบข้อมูล" */
-.report-empty {
-    margin-top: 8px;
-    font-size: 0.86rem;
-    color: #6b7280;
-}
-
-@media (max-width: 768px) {
     .filter-row {
-        flex-direction: column;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px 16px;
+        margin-bottom: 4px;
     }
+
+    .filter-group {
+        flex: 1 1 190px;
+        min-width: 180px;
+    }
+
+    .filter-group label {
+        display: block;
+        margin-bottom: 4px;
+        font-size: 0.9rem;
+    }
+
+    .filter-group input[type="date"],
+    .filter-group select {
+        width: 100%;
+        padding: 6px 8px;
+        border-radius: 6px;
+        border: 1px solid #cbd5e1;
+        font-size: 0.9rem;
+        box-sizing: border-box;
+    }
+
     .filter-actions {
-        flex: 1 1 auto;
+        flex: 0 0 150px;
+        display: flex;
+        align-items: flex-end;
     }
-}
-.form-select {
-    width: 100%;
-    padding: 7px 10px;
-    border-radius: 8px;
-    border: 1px solid #cbd5e1;
-    font-size: 0.9rem;
-    background-color: #f8fafc;
-}
 
-.form-select:focus {
-    outline: none;
-    border-color: #2563eb;
-    box-shadow: 0 0 0 2px rgba(37,99,235,.12);
-    background: #fff;
-}
-/* hover แถวรายงาน */
-.summary-row:hover {
-    background-color: #8FAFCF;
-    cursor: pointer;
-    transition: background-color 0.15s ease;
-}
+    .btn {
+        display: inline-block;
+        padding: 7px 14px;
+        border-radius: 8px;
+        border: none;
+        cursor: pointer;
+        font-size: 0.9rem;
+    }
 
-/* แถวรวมทั้งหมด */
-.summary-total-row {
-    background-color: #e0f2fe;
-    font-weight: 700;
-    border-top: 2px solid #0284c7;
-}
+    .btn-primary {
+        background: linear-gradient(135deg, #2563eb, #4f46e5);
+        color: #fff;
+    }
 
-.summary-total-row td {
-    padding-top: 10px;
-    padding-bottom: 10px;
-}
-.summary-total-row {
-    background-color: #bae6fd;
-    color: #0c4a6e;
-}
+    .btn-primary:hover {
+        filter: brightness(1.04);
+    }
 
+    /* การ์ดตาราง */
+    .report-card {
+        margin-top: 16px;
+        padding: 14px 16px 18px;
+        border-radius: 10px;
+        background-color: #ffffff;
+        box-shadow: 0 4px 14px rgba(15, 23, 42, 0.07);
+        border: 1px solid #e2e8f0;
+    }
+
+    .report-card-title {
+        font-size: 1rem;
+        font-weight: 600;
+        margin-bottom: 8px;
+    }
+
+    /* ตาราง DataTables */
+    table.dataTable thead th {
+        background-color: #f9fafb;
+        border-bottom: 1px solid #e5e7eb;
+        padding: 8px 10px;
+        font-size: 0.86rem;
+    }
+
+    table.dataTable tbody td {
+        padding: 6px 10px;
+        font-size: 0.84rem;
+    }
+
+    table.dataTable tbody tr:nth-child(even) {
+        background-color: #fdfdfd;
+    }
+
+    /* badge */
+    .badge {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 999px;
+        font-size: 0.75rem;
+        color: #fff;
+        background-color: #17a2b8;
+    }
+
+    .badge-opd {
+        background-color: #22c55e;
+    }
+
+    .badge-inj {
+        background-color: #facc15;
+        color: #1f2937;
+    }
+
+    /* info "ไม่พบข้อมูล" */
+    .report-empty {
+        margin-top: 8px;
+        font-size: 0.86rem;
+        color: #6b7280;
+    }
+
+    @media (max-width: 768px) {
+        .filter-row {
+            flex-direction: column;
+        }
+
+        .filter-actions {
+            flex: 1 1 auto;
+        }
+    }
+
+    .form-select {
+        width: 100%;
+        padding: 7px 10px;
+        border-radius: 8px;
+        border: 1px solid #cbd5e1;
+        font-size: 0.9rem;
+        background-color: #f8fafc;
+    }
+
+    .form-select:focus {
+        outline: none;
+        border-color: #2563eb;
+        box-shadow: 0 0 0 2px rgba(37, 99, 235, .12);
+        background: #fff;
+    }
+
+    /* hover แถวรายงาน */
+    .summary-row:hover {
+        background-color: #8FAFCF;
+        cursor: pointer;
+        transition: background-color 0.15s ease;
+    }
+
+    /* แถวรวมทั้งหมด */
+    .summary-total-row {
+        background-color: #e0f2fe;
+        font-weight: 700;
+        border-top: 2px solid #0284c7;
+    }
+
+    .summary-total-row td {
+        padding-top: 10px;
+        padding-bottom: 10px;
+    }
+
+    .summary-total-row {
+        background-color: #bae6fd;
+        color: #0c4a6e;
+    }
 </style>
 
 <div class="report-container">
@@ -331,14 +339,17 @@ table.dataTable tbody tr:nth-child(even) {
                     <select id="category_code" name="category_code">
                         <option value="ALL" <?= $category_code === 'ALL' ? 'selected' : ''; ?>>ทั้งหมด</option>
                         <option value="OPD" <?= $category_code === 'OPD' ? 'selected' : ''; ?>>เฉพาะกิจกรรม OPD</option>
-                        <option value="INJ" <?= $category_code === 'INJ' ? 'selected' : ''; ?>>เฉพาะห้องฉีดยา/ทำแผล</option>
+                        <option value="INJ" <?= $category_code === 'INJ' ? 'selected' : ''; ?>>เฉพาะห้องฉีดยา/ทำแผล
+                        </option>
                     </select>
                 </div>
                 <div class="filter-group">
                     <label for="report_type">ประเภทรายงาน</label>
                     <select id="report_type" name="report_type">
-                        <option value="detail" <?= $report_type === 'detail' ? 'selected' : ''; ?>>รายงานแบบละเอียด (ต่อ Visit)</option>
-                        <option value="summary" <?= $report_type === 'summary' ? 'selected' : ''; ?>>รายงานสรุปตามกิจกรรม</option>
+                        <option value="detail" <?= $report_type === 'detail' ? 'selected' : ''; ?>>รายงานแบบละเอียด (ต่อ
+                            Visit)</option>
+                        <option value="summary" <?= $report_type === 'summary' ? 'selected' : ''; ?>>รายงานสรุปตามกิจกรรม
+                        </option>
                     </select>
                 </div>
                 <div class="filter-actions">
@@ -372,12 +383,12 @@ table.dataTable tbody tr:nth-child(even) {
                         <?php $i = 1; ?>
                         <?php foreach ($detail_rows as $row): ?>
                             <?php
-                                $badgeClass = '';
-                                if ($row['category_code'] === 'OPD') {
-                                    $badgeClass = 'badge-opd';
-                                } elseif ($row['category_code'] === 'INJ') {
-                                    $badgeClass = 'badge-inj';
-                                }
+                            $badgeClass = '';
+                            if ($row['category_code'] === 'OPD') {
+                                $badgeClass = 'badge-opd';
+                            } elseif ($row['category_code'] === 'INJ') {
+                                $badgeClass = 'badge-inj';
+                            }
                             ?>
                             <tr>
                                 <td><?= $i++; ?></td>
@@ -421,19 +432,22 @@ table.dataTable tbody tr:nth-child(even) {
                 </thead>
                 <tbody>
                     <?php if (!empty($summary_rows)): ?>
-                        <?php $i = 1; ?>
+                        <?php
+                        $i = 1;
+                        // Calculate total once
+                        $total_all = 0;
+                        foreach ($summary_rows as $r) {
+                            $total_all += (int) $r['total_used'];
+                        }
+                        ?>
                         <?php foreach ($summary_rows as $row): ?>
                             <?php
-                                $badgeClass = '';
-                                if ($row['category_code'] === 'OPD') {
-                                    $badgeClass = 'badge-opd';
-                                } elseif ($row['category_code'] === 'INJ') {
-                                    $badgeClass = 'badge-inj';
-                                }
-                                $total_all = 0;
-                                foreach ($summary_rows as $r) {
-                                    $total_all += (int)$r['total_used'];
-                                }
+                            $badgeClass = '';
+                            if ($row['category_code'] === 'OPD') {
+                                $badgeClass = 'badge-opd';
+                            } elseif ($row['category_code'] === 'INJ') {
+                                $badgeClass = 'badge-inj';
+                            }
                             ?>
                             <tr class="summary-row">
                                 <td><?= $i++; ?></td>
@@ -446,17 +460,20 @@ table.dataTable tbody tr:nth-child(even) {
                                 <td style="text-align:center;"><?= number_format($row['total_used']); ?></td>
                             </tr>
                         <?php endforeach; ?>
-                            <!-- แถวรวมทั้งหมด -->
-                            <tr class="summary-total-row">
-                                <td colspan="3" style="text-align:center;">
-                                    <strong>รวมกิจกรรมทั้งหมด</strong>
-                                </td>
-                                <td style="text-align:center;">
-                                    <strong><?= number_format($total_all) ?></strong>
-                                </td>
-                            </tr>
                     <?php endif; ?>
                 </tbody>
+                <?php if (!empty($summary_rows)): ?>
+                    <tfoot>
+                        <tr class="summary-total-row">
+                            <th colspan="3" style="text-align:right; padding-right:20px;">
+                                รวมกิจกรรมทั้งหมด
+                            </th>
+                            <th style="text-align:center;">
+                                <?= number_format($total_all) ?>
+                            </th>
+                        </tr>
+                    </tfoot>
+                <?php endif; ?>
             </table>
 
             <?php if (empty($summary_rows)): ?>
@@ -469,40 +486,40 @@ table.dataTable tbody tr:nth-child(even) {
 </div>
 
 <script>
-$(document).ready(function () {
-    // DataTables ภาษาไทย
-    var dtLang = {
-        "sProcessing":   "กำลังประมวลผล...",
-        "sLengthMenu":   "แสดง _MENU_ แถว",
-        "sZeroRecords":  "ไม่พบข้อมูล",
-        "sInfo":         "แสดง _START_ ถึง _END_ จาก _TOTAL_ แถว",
-        "sInfoEmpty":    "แสดง 0 ถึง 0 จาก 0 แถว",
-        "sInfoFiltered": "(กรองข้อมูล _MAX_ ทุกแถว)",
-        "sSearch":       "ค้นหา:",
-        "oPaginate": {
-            "sFirst":    "หน้าแรก",
-            "sPrevious": "ก่อนหน้า",
-            "sNext":     "ถัดไป",
-            "sLast":     "หน้าสุดท้าย"
-        }
-    };
+    $(document).ready(function () {
+        // DataTables ภาษาไทย
+        var dtLang = {
+            "sProcessing": "กำลังประมวลผล...",
+            "sLengthMenu": "แสดง _MENU_ แถว",
+            "sZeroRecords": "ไม่พบข้อมูล",
+            "sInfo": "แสดง _START_ ถึง _END_ จาก _TOTAL_ แถว",
+            "sInfoEmpty": "แสดง 0 ถึง 0 จาก 0 แถว",
+            "sInfoFiltered": "(กรองข้อมูล _MAX_ ทุกแถว)",
+            "sSearch": "ค้นหา:",
+            "oPaginate": {
+                "sFirst": "หน้าแรก",
+                "sPrevious": "ก่อนหน้า",
+                "sNext": "ถัดไป",
+                "sLast": "หน้าสุดท้าย"
+            }
+        };
 
-    <?php if ($report_type === 'detail'): ?>
-    $('#reportDetailTable').DataTable({
-        pageLength: 25,
-        lengthMenu: [[10, 25, 50, 100], [10, 25, 50, 100]],
-        order: [[1, 'asc'], [2, 'asc']],
-        language: dtLang
+        <?php if ($report_type === 'detail'): ?>
+            $('#reportDetailTable').DataTable({
+                pageLength: 25,
+                lengthMenu: [[10, 25, 50, 100], [10, 25, 50, 100]],
+                order: [[1, 'asc'], [2, 'asc']],
+                language: dtLang
+            });
+        <?php else: ?>
+            $('#reportSummaryTable').DataTable({
+                pageLength: 25,
+                lengthMenu: [[10, 25, 50, 100], [10, 25, 50, 100]],
+                order: [[0, 'asc']],
+                language: dtLang
+            });
+        <?php endif; ?>
     });
-    <?php else: ?>
-    $('#reportSummaryTable').DataTable({
-        pageLength: 25,
-        lengthMenu: [[10, 25, 50, 100], [10, 25, 50, 100]],
-        order: [[0, 'asc']],
-        language: dtLang
-    });
-    <?php endif; ?>
-});
 </script>
 
 <?php
