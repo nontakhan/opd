@@ -457,7 +457,16 @@ $conn->close();
                                     </span>
                                 </td>
                                 <td><?= htmlspecialchars($row['activity_name']); ?></td>
-                                <td style="text-align:center;"><?= number_format($row['total_used']); ?></td>
+                                <td style="text-align:center;">
+                                    <?php if ($row['total_used'] > 0): ?>
+                                        <a href="javascript:void(0)" class="fw-bold text-primary"
+                                            onclick="showActivityDetails('<?= htmlspecialchars($row['activity_name'], ENT_QUOTES); ?>')">
+                                            <?= number_format($row['total_used']); ?>
+                                        </a>
+                                    <?php else: ?>
+                                        <?= number_format($row['total_used']); ?>
+                                    <?php endif; ?>
+                                </td>
                             </tr>
                         <?php endforeach; ?>
                     <?php endif; ?>
@@ -486,6 +495,115 @@ $conn->close();
 </div>
 
 <script>
+    // Global function for inline onclick
+    function showActivityDetails(activityName) {
+        // Check jQuery
+        if (typeof jQuery === 'undefined') {
+            alert('Error: jQuery is not loaded.');
+            return;
+        }
+
+        // Check SweetAlert2
+        if (typeof Swal === 'undefined') {
+            alert('Error: SweetAlert2 is not loaded.');
+            return;
+        }
+
+        const startDate = $('#start_date').val();
+        const endDate = $('#end_date').val();
+
+        Swal.fire({
+            title: 'กำลังโหลดข้อมูล...',
+            text: 'กรุณารอสักครู่ (Fetching details...)',
+            allowOutsideClick: false,
+            didOpen: () => {
+                Swal.showLoading();
+            }
+        });
+
+        // Use the same endpoint as report_inj_summary.php
+        $.ajax({
+            url: 'get_activity_details.php',
+            type: 'GET',
+            data: {
+                start_date: startDate,
+                end_date: endDate,
+                grouped_name: activityName // In this report, grouped_name is just the activity name
+            },
+            dataType: 'json',
+            success: function (response) {
+                if (response.length === 0) {
+                    Swal.fire('ไม่พบข้อมูล', 'ไม่มีรายการกิจกรรมในช่วงเวลานี้', 'info');
+                    return;
+                }
+
+                // Build table HTML
+                let html = `
+                    <div style="text-align: left; font-size: 0.9rem; margin-bottom: 10px;">
+                        <strong>กิจกรรม:</strong> ${activityName}<br>
+                        <strong>ช่วงวันที่:</strong> ${formatDateTh(startDate)} - ${formatDateTh(endDate)}<br>
+                        <strong>จำนวน:</strong> ${response.length} รายการ
+                    </div>
+                    <div style="max-height: 400px; overflow-y: auto;">
+                        <table class="table table-bordered table-sm" style="width:100%; font-size: 0.85rem; text-align: left;">
+                            <thead style="position: sticky; top: 0; background: #f8fafc;">
+                                <tr>
+                                    <th style="padding: 5px;">วันที่/เวลา</th>
+                                    <th style="padding: 5px;">HN</th>
+                                    <th style="padding: 5px;">ชื่อ-สกุล</th>
+                                    <th style="padding: 5px;">รายละเอียด</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                `;
+
+                response.forEach(item => {
+                    // Combine date and time
+                    const dt = new Date(item.visit_date + ' ' + item.visit_time);
+                    const dtStr = dt.toLocaleDateString('th-TH') + ' ' + dt.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
+
+                    html += `
+                        <tr>
+                            <td style="padding: 5px; border-bottom: 1px solid #eee;">${dtStr}</td>
+                            <td style="padding: 5px; border-bottom: 1px solid #eee;">${item.hn}</td>
+                            <td style="padding: 5px; border-bottom: 1px solid #eee;">${item.patient_name}</td>
+                            <td style="padding: 5px; border-bottom: 1px solid #eee;">${item.activity_name}</td>
+                        </tr>
+                    `;
+                });
+
+                html += `
+                            </tbody>
+                        </table>
+                    </div>
+                `;
+
+                Swal.fire({
+                    title: 'รายชื่อผู้รับบริการ',
+                    html: html,
+                    width: '800px',
+                    showConfirmButton: true,
+                    confirmButtonText: 'ปิด'
+                });
+            },
+            error: function (xhr, status, error) {
+                console.error('AJAX Error:', xhr.responseText);
+                Swal.fire({
+                    icon: 'error',
+                    title: 'เกิดข้อผิดพลาด',
+                    text: 'ไม่สามารถดึงข้อมูลได้: ' + error,
+                    footer: 'ดู Console เพื่อดูรายละเอียดเพิ่มเติม'
+                });
+            }
+        });
+    }
+
+    function formatDateTh(dateStr) {
+        if (!dateStr) return '';
+        const date = new Date(dateStr);
+        return date.toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' });
+    }
+
     $(document).ready(function () {
         // DataTables ภาษาไทย
         var dtLang = {

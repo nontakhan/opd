@@ -30,12 +30,11 @@ $sql = "
     INNER JOIN activities a ON a.id = d.activity_id
     INNER JOIN activity_categories ac ON ac.id = a.category_id
     WHERE h.visit_date BETWEEN ? AND ?
-      AND ac.code = 'INJ'
 ";
 
 if ($grouped_name === 'ฉีด/วัคซีน (รวมทุกชนิด)') {
-    // กรณีกลุ่มฉีด/วัคซีน
-    $sql .= " AND a.name LIKE 'ฉีด%' ";
+    // กรณีกลุ่มฉีด/วัคซีน (เฉพาะหมวด INJ)
+    $sql .= " AND a.name LIKE 'ฉีด%' AND ac.code = 'INJ' ";
     $sql .= " ORDER BY h.visit_date DESC, h.visit_time DESC, h.id DESC";
 
     if ($stmt = $conn->prepare($sql)) {
