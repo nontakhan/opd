@@ -13,11 +13,11 @@ $connMain = getMainDBConnection();
 
 $save_message = '';
 $save_message_type = '';
-$header_id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
+$header_id = isset($_GET['id']) ? (int) $_GET['id'] : 0;
 
 // ถ้าแก้ไขแบบ POST ให้ใช้ header_id จาก POST
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $header_id = isset($_POST['header_id']) ? (int)$_POST['header_id'] : 0;
+    $header_id = isset($_POST['header_id']) ? (int) $_POST['header_id'] : 0;
 }
 
 // ถ้าไม่มี id → จบ
@@ -72,7 +72,7 @@ if ($stmt = $connMain->prepare($sql_detail)) {
     $stmt->execute();
     $res = $stmt->get_result();
     while ($row = $res->fetch_assoc()) {
-        $selected_activity_ids[] = (int)$row['activity_id'];
+        $selected_activity_ids[] = (int) $row['activity_id'];
     }
     $res->free();
     $stmt->close();
@@ -88,7 +88,7 @@ $sql_activities = "
 ";
 if ($result = $connMain->query($sql_activities)) {
     while ($row = $result->fetch_assoc()) {
-        if ((int)$row['is_active'] !== 1) {
+        if ((int) $row['is_active'] !== 1) {
             continue;
         }
         $code = $row['category_code'];
@@ -96,7 +96,7 @@ if ($result = $connMain->query($sql_activities)) {
             $activities_by_category[$code] = [];
         }
         $activities_by_category[$code][] = [
-            'id'   => (int)$row['id'],
+            'id' => (int) $row['id'],
             'name' => $row['name']
         ];
     }
@@ -112,10 +112,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($action === 'update_activity') {
         $selected_category_code = isset($_POST['category_code']) ? $_POST['category_code'] : 'OPD';
-        $note       = isset($_POST['note']) ? trim($_POST['note']) : '';
+        $note = isset($_POST['note']) ? trim($_POST['note']) : '';
         $activity_ids = isset($_POST['activity_ids']) && is_array($_POST['activity_ids'])
-                            ? $_POST['activity_ids']
-                            : [];
+            ? $_POST['activity_ids']
+            : [];
 
         if (empty($activity_ids)) {
             $save_message_type = 'error';
@@ -129,7 +129,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt_cat->execute();
                 $res_cat = $stmt_cat->get_result();
                 if ($row_cat = $res_cat->fetch_assoc()) {
-                    $category_id = (int)$row_cat['id'];
+                    $category_id = (int) $row_cat['id'];
                 }
                 $res_cat->free();
                 $stmt_cat->close();
@@ -144,15 +144,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     // 1) อัพเดต header: category_id, note, updated_by, updated_at
                     $sql_upd_header = "
                         UPDATE patient_activity_header
-                        SET note = ?, updated_by = ?, updated_at = NOW()
+                        SET category_id = ?, note = ?, updated_by = ?, updated_at = NOW()
                         WHERE id = ?
                     ";
 
                     if ($stmt_upd = $connMain->prepare($sql_upd_header)) {
                         $uid = $_SESSION['user_id'];
-                        $stmt_upd->bind_param('sii', $category_id, $note, $uid, $header_id);
+                        // category_id(i), note(s), uid(i), header_id(i)
+                        if (!$stmt_upd->bind_param('isii', $category_id, $note, $uid, $header_id)) {
+                            throw new Exception('Bind param failed: ' . $stmt_upd->error);
+                        }
                         if (!$stmt_upd->execute()) {
-                            throw new Exception('ไม่สามารถอัพเดตข้อมูลหัวรายการได้');
+                            throw new Exception('ไม่สามารถอัพเดตข้อมูลหัวรายการได้: ' . $stmt_upd->error);
                         }
                         $stmt_upd->close();
                     } else {
@@ -178,7 +181,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     ";
                     if ($stmt_ins = $connMain->prepare($sql_ins_detail)) {
                         foreach ($activity_ids as $aid) {
-                            $aid_int = (int)$aid;
+                            $aid_int = (int) $aid;
                             $stmt_ins->bind_param('ii', $header_id, $aid_int);
                             if (!$stmt_ins->execute()) {
                                 throw new Exception('ไม่สามารถบันทึกรายละเอียดกิจกรรมใหม่บางส่วนได้');
@@ -212,220 +215,238 @@ $connMain->close();
 ?>
 
 <style>
-.activity-edit-container {
-    max-width: 1000px;
-    margin: 20px auto 40px;
-    padding: 0 15px;
-    font-family: "Sarabun", sans-serif;
-}
-
-/* card รวมแต่ละส่วน */
-.edit-card {
-    background: #ffffff;
-    border-radius: 12px;
-    border: 1px solid #e2e8f0;
-    box-shadow: 0 4px 10px rgba(15, 23, 42, 0.05);
-    padding: 14px 16px 16px;
-    margin-bottom: 14px;
-}
-
-/* header ของ card */
-.edit-card-header {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-bottom: 8px;
-}
-.edit-card-title {
-    font-size: 1.05rem;
-    font-weight: 700;
-    color: #111827;
-}
-.edit-card-subtitle {
-    font-size: 0.85rem;
-    color: #6b7280;
-}
-.edit-card-icon {
-    width: 24px;
-    height: 24px;
-    border-radius: 999px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 0.95rem;
-    background: #e5f3ff;
-    color: #1d4ed8;
-}
-
-/* กล่องข้อมูลผู้ป่วย */
-.patient-info-line {
-    background: #f9fafb;
-    border-radius: 8px;
-    padding: 8px 10px;
-    border: 1px solid #e5e7eb;
-    font-size: 0.9rem;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 16px;
-    margin-bottom: 4px;
-}
-.patient-info-line span.label {
-    font-weight: 600;
-}
-
-/* ฟอร์มทั่วไป */
-.form-row {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
-    margin-bottom: 10px;
-}
-.form-group {
-    flex: 1;
-    min-width: 180px;
-}
-.form-group label {
-    display: block;
-    margin-bottom: 3px;
-    font-size: 0.9rem;
-    color: #374151;
-}
-.form-group textarea {
-    width: 100%;
-    padding: 8px 10px;
-    border-radius: 8px;
-    border: 1px solid #cbd5e1;
-    font-size: 0.9rem;
-    min-height: 80px;
-    box-sizing: border-box;
-}
-.form-group textarea:focus {
-    outline: none;
-    border-color: #2563eb;
-    box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.25);
-}
-
-/* ปุ่ม */
-.btn {
-    display: inline-block;
-    padding: 7px 13px;
-    border-radius: 999px;
-    border: none;
-    cursor: pointer;
-    font-size: 0.9rem;
-    font-family: "Sarabun", sans-serif;
-}
-.btn-primary {
-    background-color: #2563eb;
-    color: #fff;
-}
-.btn-primary:hover {
-    background-color: #1d4ed8;
-}
-.btn-secondary {
-    background-color: #e5e7eb;
-    color: #111827;
-}
-.btn-secondary:hover {
-    background-color: #d1d5db;
-}
-.btn-back {
-    text-decoration: none;
-    padding: 6px 12px;
-    border-radius: 999px;
-    border: 1px solid #d1d5db;
-    font-size: 0.85rem;
-    background-color: #f9fafb;
-    color: #374151;
-}
-
-/* ปุ่มหมวดกิจกรรม */
-.btn-category {
-    margin-right: 6px;
-    margin-bottom: 6px;
-}
-.btn-category.active {
-    background-color: #16a34a;
-    color: #ffffff;
-}
-
-/* กล่องรายการกิจกรรม – 3 คอลัมน์ */
-.activity-list-wrapper {
-    border: 1px solid #e2e8f0;
-    border-radius: 10px;
-    padding: 10px;
-    background-color: #f9fafb;
-}
-
-.activity-grid {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 8px;
-}
-
-.activity-option {
-    border-radius: 10px;
-    border: 1px solid #e5e7eb;
-    background-color: #ffffff;
-    padding: 8px 10px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 0.9rem;
-    cursor: pointer;
-    transition: background-color 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
-}
-.activity-option input[type="checkbox"] {
-    transform: scale(1.1);
-    accent-color: #2563eb;
-}
-.activity-option:hover {
-    background-color: #eff6ff;
-    border-color: #2563eb;
-    box-shadow: 0 1px 4px rgba(15, 23, 42, 0.12);
-}
-
-/* มือถือ: ให้เหลือ 1–2 คอลัมน์ */
-@media (max-width: 900px) {
-    .activity-grid {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-}
-@media (max-width: 640px) {
-    .activity-grid {
-        grid-template-columns: repeat(1, minmax(0, 1fr));
-    }
     .activity-edit-container {
-        padding: 0 10px;
+        max-width: 1000px;
+        margin: 20px auto 40px;
+        padding: 0 15px;
+        font-family: "Sarabun", sans-serif;
     }
-}
-/* dropdown style ให้เข้ากับระบบ */
-.select-ui {
-    width: 100%;
-    padding: 9px 14px;
-    border-radius: 999px;
-    border: 1px solid #cbd5e1;
-    background-color: #f8fafc;
-    font-size: 0.9rem;
-    font-family: "Sarabun", sans-serif;
-    appearance: none;
-    background-image:
-        linear-gradient(45deg, transparent 50%, #64748b 50%),
-        linear-gradient(135deg, #64748b 50%, transparent 50%);
-    background-position:
-        calc(100% - 20px) 50%,
-        calc(100% - 14px) 50%;
-    background-size: 6px 6px;
-    background-repeat: no-repeat;
-}
 
-.select-ui:focus {
-    outline: none;
-    border-color: #2563eb;
-    background-color: #ffffff;
-    box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.25);
-}
+    /* card รวมแต่ละส่วน */
+    .edit-card {
+        background: #ffffff;
+        border-radius: 12px;
+        border: 1px solid #e2e8f0;
+        box-shadow: 0 4px 10px rgba(15, 23, 42, 0.05);
+        padding: 14px 16px 16px;
+        margin-bottom: 14px;
+    }
 
+    /* header ของ card */
+    .edit-card-header {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 8px;
+    }
+
+    .edit-card-title {
+        font-size: 1.05rem;
+        font-weight: 700;
+        color: #111827;
+    }
+
+    .edit-card-subtitle {
+        font-size: 0.85rem;
+        color: #6b7280;
+    }
+
+    .edit-card-icon {
+        width: 24px;
+        height: 24px;
+        border-radius: 999px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.95rem;
+        background: #e5f3ff;
+        color: #1d4ed8;
+    }
+
+    /* กล่องข้อมูลผู้ป่วย */
+    .patient-info-line {
+        background: #f9fafb;
+        border-radius: 8px;
+        padding: 8px 10px;
+        border: 1px solid #e5e7eb;
+        font-size: 0.9rem;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 16px;
+        margin-bottom: 4px;
+    }
+
+    .patient-info-line span.label {
+        font-weight: 600;
+    }
+
+    /* ฟอร์มทั่วไป */
+    .form-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-bottom: 10px;
+    }
+
+    .form-group {
+        flex: 1;
+        min-width: 180px;
+    }
+
+    .form-group label {
+        display: block;
+        margin-bottom: 3px;
+        font-size: 0.9rem;
+        color: #374151;
+    }
+
+    .form-group textarea {
+        width: 100%;
+        padding: 8px 10px;
+        border-radius: 8px;
+        border: 1px solid #cbd5e1;
+        font-size: 0.9rem;
+        min-height: 80px;
+        box-sizing: border-box;
+    }
+
+    .form-group textarea:focus {
+        outline: none;
+        border-color: #2563eb;
+        box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.25);
+    }
+
+    /* ปุ่ม */
+    .btn {
+        display: inline-block;
+        padding: 7px 13px;
+        border-radius: 999px;
+        border: none;
+        cursor: pointer;
+        font-size: 0.9rem;
+        font-family: "Sarabun", sans-serif;
+    }
+
+    .btn-primary {
+        background-color: #2563eb;
+        color: #fff;
+    }
+
+    .btn-primary:hover {
+        background-color: #1d4ed8;
+    }
+
+    .btn-secondary {
+        background-color: #e5e7eb;
+        color: #111827;
+    }
+
+    .btn-secondary:hover {
+        background-color: #d1d5db;
+    }
+
+    .btn-back {
+        text-decoration: none;
+        padding: 6px 12px;
+        border-radius: 999px;
+        border: 1px solid #d1d5db;
+        font-size: 0.85rem;
+        background-color: #f9fafb;
+        color: #374151;
+    }
+
+    /* ปุ่มหมวดกิจกรรม */
+    .btn-category {
+        margin-right: 6px;
+        margin-bottom: 6px;
+    }
+
+    .btn-category.active {
+        background-color: #16a34a;
+        color: #ffffff;
+    }
+
+    /* กล่องรายการกิจกรรม – 3 คอลัมน์ */
+    .activity-list-wrapper {
+        border: 1px solid #e2e8f0;
+        border-radius: 10px;
+        padding: 10px;
+        background-color: #f9fafb;
+    }
+
+    .activity-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 8px;
+    }
+
+    .activity-option {
+        border-radius: 10px;
+        border: 1px solid #e5e7eb;
+        background-color: #ffffff;
+        padding: 8px 10px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 0.9rem;
+        cursor: pointer;
+        transition: background-color 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
+    }
+
+    .activity-option input[type="checkbox"] {
+        transform: scale(1.1);
+        accent-color: #2563eb;
+    }
+
+    .activity-option:hover {
+        background-color: #eff6ff;
+        border-color: #2563eb;
+        box-shadow: 0 1px 4px rgba(15, 23, 42, 0.12);
+    }
+
+    /* มือถือ: ให้เหลือ 1–2 คอลัมน์ */
+    @media (max-width: 900px) {
+        .activity-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+    }
+
+    @media (max-width: 640px) {
+        .activity-grid {
+            grid-template-columns: repeat(1, minmax(0, 1fr));
+        }
+
+        .activity-edit-container {
+            padding: 0 10px;
+        }
+    }
+
+    /* dropdown style ให้เข้ากับระบบ */
+    .select-ui {
+        width: 100%;
+        padding: 9px 14px;
+        border-radius: 999px;
+        border: 1px solid #cbd5e1;
+        background-color: #f8fafc;
+        font-size: 0.9rem;
+        font-family: "Sarabun", sans-serif;
+        appearance: none;
+        background-image:
+            linear-gradient(45deg, transparent 50%, #64748b 50%),
+            linear-gradient(135deg, #64748b 50%, transparent 50%);
+        background-position:
+            calc(100% - 20px) 50%,
+            calc(100% - 14px) 50%;
+        background-size: 6px 6px;
+        background-repeat: no-repeat;
+    }
+
+    .select-ui:focus {
+        outline: none;
+        border-color: #2563eb;
+        background-color: #ffffff;
+        box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.25);
+    }
 </style>
 
 <div class="activity-edit-container">
@@ -471,22 +492,22 @@ $connMain->close();
             <div>
                 <div class="edit-card-title">2. แก้ไขรายละเอียดกิจกรรม</div>
                 <div class="edit-card-subtitle">เลือกประเภทกิจกรรมและรายการกิจกรรมที่ทำกับผู้ป่วย</div>
-                <div style="font-size:0.85rem;color:#6b7280;margin-top:4px;"> * ไม่สามารถเปลี่ยนประเภทกิจกรรมหลังจากบันทึกแล้ว </div>
+                <div style="font-size:0.85rem;color:#6b7280;margin-top:4px;"> *
+                    ไม่สามารถเปลี่ยนประเภทกิจกรรมหลังจากบันทึกแล้ว </div>
             </div>
         </div>
 
-        <form method="post" action="activity_edit.php?id=<?= (int)$header_id; ?>">
+        <form method="post" action="activity_edit.php?id=<?= (int) $header_id; ?>">
             <input type="hidden" name="form_action" value="update_activity">
-            <input type="hidden" name="header_id" value="<?= (int)$header_id; ?>">
-            <input type="hidden" name="category_code" id="category_code" value="<?= htmlspecialchars($selected_category_code); ?>">
+            <input type="hidden" name="header_id" value="<?= (int) $header_id; ?>">
+            <input type="hidden" name="category_code" id="category_code"
+                value="<?= htmlspecialchars($selected_category_code); ?>">
 
             <!-- ปุ่มเลือกประเภทกิจกรรม -->
             <div class="form-row">
                 <div class="form-group">
                     <label>ประเภทกิจกรรม</label>
-                    <button type="button"
-                            class="btn btn-category active"
-                            disabled>
+                    <button type="button" class="btn btn-category active" disabled>
                         <?= $header['category_name']; ?>
                     </button>
                 </div>
@@ -522,30 +543,30 @@ $connMain->close();
 </div>
 
 <script>
-// ===============================
-// activity_edit.php (LOCK CATEGORY)
-// ===============================
+    // ===============================
+    // activity_edit.php (LOCK CATEGORY)
+    // ===============================
 
-// ข้อมูลกิจกรรมทั้งหมดจาก PHP
-const activitiesData = <?= json_encode($activities_by_category, JSON_UNESCAPED_UNICODE); ?>;
+    // ข้อมูลกิจกรรมทั้งหมดจาก PHP
+    const activitiesData = <?= json_encode($activities_by_category, JSON_UNESCAPED_UNICODE); ?>;
 
-// หมวดกิจกรรม "เดิม" จากฐานข้อมูล (ห้ามเปลี่ยน)
-const selectedCategoryCode = <?= json_encode($header['category_code']); ?>;
+    // หมวดกิจกรรม "เดิม" จากฐานข้อมูล (ห้ามเปลี่ยน)
+    const selectedCategoryCode = <?= json_encode($header['category_code']); ?>;
 
-// activity_id ที่เคยเลือกไว้
-const preSelectedActivityIds = <?= json_encode($selected_activity_ids); ?>;
+    // activity_id ที่เคยเลือกไว้
+    const preSelectedActivityIds = <?= json_encode($selected_activity_ids); ?>;
 
-// render รายการกิจกรรม (เฉพาะหมวดเดิม)
-function renderActivities() {
-    const container = document.getElementById('activityList');
-    container.innerHTML = '';
+    // render รายการกิจกรรม (เฉพาะหมวดเดิม)
+    function renderActivities() {
+        const container = document.getElementById('activityList');
+        container.innerHTML = '';
 
-    // ถ้าไม่มีข้อมูลในหมวดนี้
-    if (
-        !activitiesData[selectedCategoryCode] ||
-        activitiesData[selectedCategoryCode].length === 0
-    ) {
-        container.innerHTML = `
+        // ถ้าไม่มีข้อมูลในหมวดนี้
+        if (
+            !activitiesData[selectedCategoryCode] ||
+            activitiesData[selectedCategoryCode].length === 0
+        ) {
+            container.innerHTML = `
             <div style="
                 grid-column:1/-1;
                 color:#6b7280;
@@ -556,51 +577,51 @@ function renderActivities() {
                 ไม่พบรายการกิจกรรมในหมวดนี้
             </div>
         `;
-        return;
-    }
-
-    // วนแสดงกิจกรรม
-    activitiesData[selectedCategoryCode].forEach(act => {
-        const label = document.createElement('label');
-        label.className = 'activity-option';
-
-        const checkbox = document.createElement('input');
-        checkbox.type = 'checkbox';
-        checkbox.name = 'activity_ids[]';
-        checkbox.value = act.id;
-
-        // ถ้าเคยเลือกไว้ → checked
-        if (preSelectedActivityIds.includes(parseInt(act.id))) {
-            checkbox.checked = true;
+            return;
         }
 
-        const text = document.createTextNode(' ' + act.name);
+        // วนแสดงกิจกรรม
+        activitiesData[selectedCategoryCode].forEach(act => {
+            const label = document.createElement('label');
+            label.className = 'activity-option';
 
-        label.appendChild(checkbox);
-        label.appendChild(text);
-        container.appendChild(label);
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.name = 'activity_ids[]';
+            checkbox.value = act.id;
+
+            // ถ้าเคยเลือกไว้ → checked
+            if (preSelectedActivityIds.includes(parseInt(act.id))) {
+                checkbox.checked = true;
+            }
+
+            const text = document.createTextNode(' ' + act.name);
+
+            label.appendChild(checkbox);
+            label.appendChild(text);
+            container.appendChild(label);
+        });
+    }
+
+    // โหลดครั้งเดียวตอนเปิดหน้า
+    document.addEventListener('DOMContentLoaded', function () {
+        renderActivities();
     });
-}
-
-// โหลดครั้งเดียวตอนเปิดหน้า
-document.addEventListener('DOMContentLoaded', function () {
-    renderActivities();
-});
 </script>
 
 
 <?php if ($save_message !== ''): ?>
-<script>
-Swal.fire({
-    icon: <?= json_encode($save_message_type === 'success' ? 'success' : 'error'); ?>,
-    title: <?= json_encode($save_message_type === 'success' ? 'บันทึกข้อมูล' : 'เกิดข้อผิดพลาด'); ?>,
-    text: <?= json_encode($save_message, JSON_UNESCAPED_UNICODE); ?>,
-    confirmButtonText: 'ตกลง'
-}).then(() => {
-    window.location.href = "activity_list.php";
-});
+    <script>
+        Swal.fire({
+            icon: <?= json_encode($save_message_type === 'success' ? 'success' : 'error'); ?>,
+            title: <?= json_encode($save_message_type === 'success' ? 'บันทึกข้อมูล' : 'เกิดข้อผิดพลาด'); ?>,
+            text: <?= json_encode($save_message, JSON_UNESCAPED_UNICODE); ?>,
+            confirmButtonText: 'ตกลง'
+        }).then(() => {
+            window.location.href = "activity_list.php";
+        });
 
-</script>
+    </script>
 <?php endif; ?>
 
 <?php
