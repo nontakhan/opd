@@ -52,9 +52,13 @@ if ($stmt = $conn->prepare($sql)) {
 $conn->close();
 ?>
 
+<!-- DataTables (jQuery is already in header) -->
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.8/css/jquery.dataTables.min.css">
+<script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
+
 <style>
     .report-container {
-        max-width: 900px;
+        max-width: 1100px;
         margin: 20px auto;
         padding: 0 15px 40px;
         font-family: "Sarabun", sans-serif;
@@ -68,9 +72,9 @@ $conn->close();
     }
 
     .report-title {
-        font-size: 1.2rem;
+        font-size: 1.5rem;
         font-weight: 700;
-        margin-bottom: 4px;
+        margin-bottom: 6px;
     }
 
     .report-subtitle {
@@ -141,7 +145,13 @@ $conn->close();
 
     table.display {
         width: 100%;
-        font-size: 0.9rem;
+        font-size: 1.05rem;
+    }
+
+    /* เพิ่มความสูงแถวตาราง */
+    table.dataTable tbody th,
+    table.dataTable tbody td {
+        padding: 10px 12px !important;
     }
 
     /* หัวตารางสวย ๆ */
@@ -154,6 +164,12 @@ $conn->close();
     #injSummaryTable td:nth-child(1),
     #injSummaryTable td:nth-child(3) {
         text-align: center;
+    }
+
+    /* Highlight Hover */
+    table.dataTable tbody tr:hover {
+        background-color: #eff6ff !important; /* Light Blue */
+        cursor: pointer;
     }
 
     .hint-note {
