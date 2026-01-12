@@ -8,6 +8,7 @@ header('Content-Type: application/json; charset=utf-8');
 $start_date = isset($_GET['start_date']) ? trim($_GET['start_date']) : '';
 $end_date = isset($_GET['end_date']) ? trim($_GET['end_date']) : '';
 $grouped_name = isset($_GET['grouped_name']) ? trim($_GET['grouped_name']) : '';
+$time_type = isset($_GET['time_type']) ? $_GET['time_type'] : 'ALL';
 
 if (empty($start_date) || empty($end_date) || empty($grouped_name)) {
     echo json_encode([]);
@@ -35,6 +36,13 @@ $sql = "
 if ($grouped_name === 'ฉีด/วัคซีน (รวมทุกชนิด)') {
     // กรณีกลุ่มฉีด/วัคซีน (เฉพาะหมวด INJ)
     $sql .= " AND a.name LIKE 'ฉีด%' AND ac.code = 'INJ' ";
+
+    if ($time_type === 'IN_TIME') {
+        $sql .= " AND h.visit_time <= '16:00:00' ";
+    } elseif ($time_type === 'OUT_TIME') {
+        $sql .= " AND h.visit_time > '16:00:00' ";
+    }
+
     $sql .= " ORDER BY h.visit_date DESC, h.visit_time DESC, h.id DESC";
 
     if ($stmt = $conn->prepare($sql)) {
@@ -49,6 +57,13 @@ if ($grouped_name === 'ฉีด/วัคซีน (รวมทุกชนิ
 } else {
     // กรณีชื่อกิจกรรมปกติ
     $sql .= " AND a.name = ? ";
+
+    if ($time_type === 'IN_TIME') {
+        $sql .= " AND h.visit_time <= '16:00:00' ";
+    } elseif ($time_type === 'OUT_TIME') {
+        $sql .= " AND h.visit_time > '16:00:00' ";
+    }
+
     $sql .= " ORDER BY h.visit_date DESC, h.visit_time DESC, h.id DESC";
 
     if ($stmt = $conn->prepare($sql)) {

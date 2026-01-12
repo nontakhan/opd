@@ -12,6 +12,7 @@ $conn = getMainDBConnection();
 // --- รับค่า filter ---
 $start_date = isset($_GET['start_date']) ? trim($_GET['start_date']) : date('Y-m-d');
 $end_date = isset($_GET['end_date']) ? trim($_GET['end_date']) : date('Y-m-d');
+$time_type = isset($_GET['time_type']) ? $_GET['time_type'] : 'ALL'; // ALL, IN_TIME, OUT_TIME
 
 $rows = [];
 
@@ -30,6 +31,15 @@ $sql = "
     INNER JOIN activity_categories ac ON ac.id = a.category_id
     WHERE h.visit_date BETWEEN ? AND ?
       AND ac.code = 'INJ'
+";
+
+if ($time_type === 'IN_TIME') {
+    $sql .= " AND h.visit_time <= '16:00:00' ";
+} elseif ($time_type === 'OUT_TIME') {
+    $sql .= " AND h.visit_time > '16:00:00' ";
+}
+
+$sql .= "
     GROUP BY 
         CASE 
             WHEN a.name LIKE 'ฉีด%' THEN 'ฉีด/วัคซีน (รวมทุกชนิด)'
@@ -168,7 +178,8 @@ $conn->close();
 
     /* Highlight Hover */
     table.dataTable tbody tr:hover {
-        background-color: #eff6ff !important; /* Light Blue */
+        background-color: #eff6ff !important;
+        /* Light Blue */
         cursor: pointer;
     }
 
@@ -211,8 +222,18 @@ $conn->close();
                     <input type="date" id="start_date" name="start_date" value="<?= htmlspecialchars($start_date); ?>">
                 </div>
                 <div class="filter-group filter-date">
-                    <label for="end_date">วันที่สิ้นสุด</label>
                     <input type="date" id="end_date" name="end_date" value="<?= htmlspecialchars($end_date); ?>">
+                </div>
+                <div class="filter-group">
+                    <label for="time_type">ประเภทเวลา</label>
+                    <select id="time_type" name="time_type"
+                        style="width: 100%; padding: 7px 10px; border-radius: 8px; border: 1px solid #cbd5e1; font-size: 0.9rem; box-sizing: border-box;">
+                        <option value="ALL" <?= $time_type === 'ALL' ? 'selected' : ''; ?>>ทุกช่วงเวลา</option>
+                        <option value="IN_TIME" <?= $time_type === 'IN_TIME' ? 'selected' : ''; ?>>ในเวลา (<=
+                                16:00)</option>
+                        <option value="OUT_TIME" <?= $time_type === 'OUT_TIME' ? 'selected' : ''; ?>>นอกเวลา (> 16:00)
+                        </option>
+                    </select>
                 </div>
                 <div class="filter-group" style="flex:0 0 150px;">
                     <button type="submit" class="btn btn-primary">แสดงรายงาน</button>
@@ -278,6 +299,7 @@ $conn->close();
 
         const startDate = $('#start_date').val();
         const endDate = $('#end_date').val();
+        const timeType = $('#time_type').val();
 
         Swal.fire({
             title: 'กำลังโหลดข้อมูล...',
@@ -294,7 +316,8 @@ $conn->close();
             data: {
                 start_date: startDate,
                 end_date: endDate,
-                grouped_name: groupedName
+                grouped_name: groupedName,
+                time_type: timeType
             },
             dataType: 'json',
             success: function (response) {

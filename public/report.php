@@ -15,6 +15,7 @@ $start_date = isset($_GET['start_date']) ? trim($_GET['start_date']) : date('Y-m
 $end_date = isset($_GET['end_date']) ? trim($_GET['end_date']) : date('Y-m-d');
 $category_code = isset($_GET['category_code']) ? $_GET['category_code'] : 'ALL'; // ALL, OPD, INJ
 $report_type = isset($_GET['report_type']) ? $_GET['report_type'] : 'detail';  // detail, summary
+$time_type = isset($_GET['time_type']) ? $_GET['time_type'] : 'ALL'; // ALL, IN_TIME, OUT_TIME
 $nurse_id = isset($_GET['nurse_id']) ? $_GET['nurse_id'] : 'ALL';
 
 $detail_rows = [];
@@ -51,6 +52,12 @@ if ($report_type === 'detail') {
         $sql .= " AND ac.code = ? ";
         $params[] = $category_code;
         $types .= 's';
+    }
+
+    if ($time_type === 'IN_TIME') {
+        $sql .= " AND h.visit_time <= '16:00:00' ";
+    } elseif ($time_type === 'OUT_TIME') {
+        $sql .= " AND h.visit_time > '16:00:00' ";
     }
 
     $sql .= "
@@ -92,6 +99,12 @@ else {
         $sql .= " AND ac.code = ? ";
         $params[] = $category_code;
         $types .= 's';
+    }
+
+    if ($time_type === 'IN_TIME') {
+        $sql .= " AND h.visit_time <= '16:00:00' ";
+    } elseif ($time_type === 'OUT_TIME') {
+        $sql .= " AND h.visit_time > '16:00:00' ";
     }
 
     $sql .= "
@@ -344,6 +357,14 @@ $conn->close();
                     </select>
                 </div>
                 <div class="filter-group">
+                    <label for="time_type">ประเภทเวลา</label>
+                    <select id="time_type" name="time_type">
+                        <option value="ALL" <?= $time_type === 'ALL' ? 'selected' : ''; ?>>ทุกช่วงเวลา</option>
+                        <option value="IN_TIME" <?= $time_type === 'IN_TIME' ? 'selected' : ''; ?>>ในเวลา (<= 16:00)</option>
+                        <option value="OUT_TIME" <?= $time_type === 'OUT_TIME' ? 'selected' : ''; ?>>นอกเวลา (> 16:00)</option>
+                    </select>
+                </div>
+                <div class="filter-group">
                     <label for="report_type">ประเภทรายงาน</label>
                     <select id="report_type" name="report_type">
                         <option value="detail" <?= $report_type === 'detail' ? 'selected' : ''; ?>>รายงานแบบละเอียด (ต่อ
@@ -521,6 +542,8 @@ $conn->close();
             }
         });
 
+        const timeType = $('#time_type').val();
+
         // Use the same endpoint as report_inj_summary.php
         $.ajax({
             url: 'get_activity_details.php',
@@ -528,7 +551,8 @@ $conn->close();
             data: {
                 start_date: startDate,
                 end_date: endDate,
-                grouped_name: activityName // In this report, grouped_name is just the activity name
+                grouped_name: activityName, // In this report, grouped_name is just the activity name
+                time_type: timeType
             },
             dataType: 'json',
             success: function (response) {
