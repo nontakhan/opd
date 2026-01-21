@@ -27,6 +27,8 @@ require_once '../includes/navbar.php';
 // ตัวแปรไว้ใช้ในหน้า
 $search_hn = '';
 $patient_data = null;      // array เก็บข้อมูลจากฐาน รพ.
+$patient_visits = [];      // array เก็บ visits ทั้งหมด (สำหรับเลือก)
+$show_visit_modal = false; // แสดง modal เลือก visit
 $selected_category_code = '';     // ค่าเริ่มต้น
 $save_message = '';
 $save_message_type = '';        // success / error
@@ -143,6 +145,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             $connHos = getHospitalDBConnection();
 
+            // ดึงข้อมูล visits ทั้งหมดของผู้ป่วยในวันนี้ (ไม่ใช้ LIMIT 1)
             $sql_patient = "
                 SELECT 
                     p.hn,
@@ -156,11 +159,84 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 WHERE o.vstdate = CURDATE()
                   AND p.hn = ?
                 ORDER BY o.vsttime DESC
-                LIMIT 1
             ";
 
             if ($stmt = $connHos->prepare($sql_patient)) {
                 $stmt->bind_param('s', $hn_for_query);
+                $stmt->execute();
+                $result = $stmt->get_result();
+
+                $patient_visits = [];
+                while ($row = $result->fetch_assoc()) {
+                    $patient_visits[] = [
+                        'hn' => tis620_to_utf8($row['hn']),
+                        'patient_name' => tis620_to_utf8($row['patient_name']),
+                        'cid' => tis620_to_utf8($row['cid']),
+                        'vn' => tis620_to_utf8($row['vn']),
+                        'visit_date' => $row['vstdate'],
+                        'visit_time' => $row['vsttime']
+                    ];
+                }
+
+                if (count($patient_visits) === 0) {
+                    $save_message_type = 'error';
+                    $save_message = 'ไม่พบประวัติผู้ป่วย HN นี้ในวันนี้';
+                    $search_hn = '';
+                } elseif (count($patient_visits) === 1) {
+                    // มี visit เดียว ใช้เลย
+                    $patient_data = $patient_visits[0];
+                } else {
+                    // มีหลาย visits แสดง modal ให้เลือก
+                    $show_visit_modal = true;
+                }
+
+                $stmt->close();
+            } else {
+                $save_message_type = 'error';
+                $save_message = 'ไม่สามารถเตรียมคำสั่งค้นหาข้อมูลผู้ป่วยได้';
+            }
+
+            $connHos->close();
+        }
+    }
+
+    // 2.5) เลือก visit จาก modal
+    elseif ($action === 'select_visit') {
+        $selected_vn = isset($_POST['selected_vn']) ? trim($_POST['selected_vn']) : '';
+        $search_hn_input = trim($_POST['hn'] ?? '');
+        $search_hn_digits = preg_replace('/\D/', '', $search_hn_input);
+        $search_hn = $search_hn_digits;
+        $hn_for_query = str_pad($search_hn_digits, 9, '0', STR_PAD_LEFT);
+
+        // รับค่า category จากฟอร์ม
+        if (
+            isset($_POST['category_code']) &&
+            in_array($_POST['category_code'], ['OPD', 'INJ'], true)
+        ) {
+            $selected_category_code = $_POST['category_code'];
+        }
+
+        if ($selected_vn !== '' && $search_hn_digits !== '') {
+            $connHos = getHospitalDBConnection();
+
+            $sql_patient = "
+                SELECT 
+                    p.hn,
+                    CONCAT(p.pname, p.fname, ' ', p.lname) AS patient_name,
+                    p.cid,
+                    o.vn,
+                    o.vstdate,
+                    o.vsttime
+                FROM patient p
+                LEFT JOIN ovst o ON o.hn = p.hn
+                WHERE o.vstdate = CURDATE()
+                  AND p.hn = ?
+                  AND o.vn = ?
+                LIMIT 1
+            ";
+
+            if ($stmt = $connHos->prepare($sql_patient)) {
+                $stmt->bind_param('ss', $hn_for_query, $selected_vn);
                 $stmt->execute();
                 $result = $stmt->get_result();
 
@@ -175,14 +251,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     ];
                 } else {
                     $save_message_type = 'error';
-                    $save_message = 'ไม่พบประวัติผู้ป่วย HN นี้ในวันนี้';
+                    $save_message = 'ไม่พบ visit ที่เลือก';
                     $search_hn = '';
                 }
 
                 $stmt->close();
-            } else {
-                $save_message_type = 'error';
-                $save_message = 'ไม่สามารถเตรียมคำสั่งค้นหาข้อมูลผู้ป่วยได้';
             }
 
             $connHos->close();
@@ -624,7 +697,238 @@ $connMain->close();
         border-color: #2563eb;
         box-shadow: 0 0 0 1px #2563eb;
     }
+
+    /* ===== Visit Selection Modal ===== */
+    .visit-modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 9999;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .visit-modal {
+        background: #fff;
+        border-radius: 12px;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        max-width: 600px;
+        width: 90%;
+        max-height: 80vh;
+        overflow: hidden;
+    }
+
+    .visit-modal-header {
+        background: linear-gradient(135deg, #2563eb, #4f46e5);
+        color: #fff;
+        padding: 16px 20px;
+        font-size: 1.1rem;
+        font-weight: 600;
+    }
+
+    .visit-modal-body {
+        padding: 20px;
+        max-height: 400px;
+        overflow-y: auto;
+    }
+
+    .visit-modal-info {
+        background: #fef3c7;
+        border: 1px solid #f59e0b;
+        border-radius: 8px;
+        padding: 12px;
+        margin-bottom: 16px;
+        font-size: 0.9rem;
+        color: #92400e;
+    }
+
+    .visit-option {
+        border: 2px solid #e5e7eb;
+        border-radius: 8px;
+        padding: 14px 16px;
+        margin-bottom: 10px;
+        cursor: pointer;
+        transition: all 0.2s;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+
+    .visit-option:hover {
+        border-color: #2563eb;
+        background-color: #eff6ff;
+    }
+
+    .visit-option.selected {
+        border-color: #2563eb;
+        background-color: #dbeafe;
+    }
+
+    .visit-option-radio {
+        width: 20px;
+        height: 20px;
+        border: 2px solid #9ca3af;
+        border-radius: 50%;
+        flex-shrink: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .visit-option.selected .visit-option-radio {
+        border-color: #2563eb;
+        background-color: #2563eb;
+    }
+
+    .visit-option.selected .visit-option-radio::after {
+        content: '';
+        width: 8px;
+        height: 8px;
+        background: #fff;
+        border-radius: 50%;
+    }
+
+    .visit-option-content {
+        flex: 1;
+    }
+
+    .visit-option-vn {
+        font-weight: 600;
+        color: #1e40af;
+        font-size: 0.95rem;
+    }
+
+    .visit-option-time {
+        color: #475569;
+        font-size: 0.9rem;
+        margin-top: 2px;
+    }
+
+    .visit-modal-footer {
+        padding: 16px 20px;
+        border-top: 1px solid #e5e7eb;
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
+    }
+
+    .btn-confirm-visit {
+        background: linear-gradient(135deg, #22c55e, #16a34a);
+        color: #fff;
+        padding: 10px 24px;
+        border-radius: 999px;
+        border: none;
+        font-weight: 600;
+        font-size: 0.9rem;
+        cursor: pointer;
+        font-family: "Sarabun", sans-serif;
+    }
+
+    .btn-confirm-visit:hover {
+        filter: brightness(1.05);
+    }
+
+    .btn-confirm-visit:disabled {
+        background: #9ca3af;
+        cursor: not-allowed;
+    }
+
+    .btn-cancel-visit {
+        background: #f3f4f6;
+        color: #374151;
+        padding: 10px 24px;
+        border-radius: 999px;
+        border: 1px solid #d1d5db;
+        font-weight: 600;
+        font-size: 0.9rem;
+        cursor: pointer;
+        font-family: "Sarabun", sans-serif;
+    }
+
+    .btn-cancel-visit:hover {
+        background: #e5e7eb;
+    }
 </style>
+
+<!-- Modal เลือก Visit (แสดงเมื่อมีหลาย visits) -->
+<?php if ($show_visit_modal && count($patient_visits) > 1): ?>
+<div class="visit-modal-overlay" id="visitModalOverlay">
+    <div class="visit-modal">
+        <div class="visit-modal-header">
+            🏥 เลือก Visit ที่ต้องการบันทึกกิจกรรม
+        </div>
+        <div class="visit-modal-body">
+            <div class="visit-modal-info">
+                ⚠️ ผู้ป่วย <strong><?= htmlspecialchars($patient_visits[0]['patient_name']); ?></strong> 
+                (HN: <?= htmlspecialchars($patient_visits[0]['hn']); ?>) 
+                มี <?= count($patient_visits); ?> visits ในวันนี้ กรุณาเลือก visit ที่ต้องการบันทึกกิจกรรม
+            </div>
+            
+            <form method="post" action="activity_form.php" id="selectVisitForm">
+                <input type="hidden" name="form_action" value="select_visit">
+                <input type="hidden" name="hn" value="<?= htmlspecialchars($search_hn); ?>">
+                <input type="hidden" name="category_code" value="<?= htmlspecialchars($selected_category_code); ?>">
+                <input type="hidden" name="selected_vn" id="selectedVn" value="">
+                
+                <?php foreach ($patient_visits as $index => $visit): ?>
+                <div class="visit-option" data-vn="<?= htmlspecialchars($visit['vn']); ?>">
+                    <div class="visit-option-radio"></div>
+                    <div class="visit-option-content">
+                        <div class="visit-option-vn">VN: <?= htmlspecialchars($visit['vn']); ?></div>
+                        <div class="visit-option-time">
+                            เวลา: <?= substr($visit['visit_time'], 0, 5); ?> น.
+                        </div>
+                    </div>
+                </div>
+                <?php endforeach; ?>
+            </form>
+        </div>
+        <div class="visit-modal-footer">
+            <button type="button" class="btn-cancel-visit" onclick="closeVisitModal()">ยกเลิก</button>
+            <button type="button" class="btn-confirm-visit" id="confirmVisitBtn" disabled onclick="confirmVisitSelection()">
+                ยืนยันการเลือก
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+    // จัดการการเลือก visit ใน modal
+    document.querySelectorAll('.visit-option').forEach(option => {
+        option.addEventListener('click', function() {
+            // ลบ selected จากทุกตัว
+            document.querySelectorAll('.visit-option').forEach(o => o.classList.remove('selected'));
+            // เพิ่ม selected ให้ตัวที่คลิก
+            this.classList.add('selected');
+            // อัพเดท hidden input
+            document.getElementById('selectedVn').value = this.dataset.vn;
+            // เปิดใช้งานปุ่มยืนยัน
+            document.getElementById('confirmVisitBtn').disabled = false;
+        });
+    });
+
+    function confirmVisitSelection() {
+        const selectedVn = document.getElementById('selectedVn').value;
+        if (selectedVn) {
+            document.getElementById('selectVisitForm').submit();
+        }
+    }
+
+    function closeVisitModal() {
+        document.getElementById('visitModalOverlay').style.display = 'none';
+        // clear HN input และ focus
+        const hnInput = document.getElementById('hn');
+        if (hnInput) {
+            hnInput.value = '';
+            hnInput.focus();
+        }
+    }
+</script>
+<?php endif; ?>
 
 <div class="activity-form-container">
     <h2>บันทึกกิจกรรมพยาบาล</h2>
