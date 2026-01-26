@@ -11,7 +11,7 @@ require_once '../includes/navbar.php';
 $conn = getMainDBConnection();
 
 // อ่านค่าจาก GET (default: เดือนปัจจุบัน, รายงานแบบ detailed, ทุกประเภทกิจกรรม)
-$start_date = isset($_GET['start_date']) ? trim($_GET['start_date']) : date('Y-m-01');
+$start_date = isset($_GET['start_date']) ? trim($_GET['start_date']) : date('Y-m-d');
 $end_date = isset($_GET['end_date']) ? trim($_GET['end_date']) : date('Y-m-d');
 $category_code = isset($_GET['category_code']) ? $_GET['category_code'] : 'ALL'; // ALL, OPD, INJ
 $report_type = isset($_GET['report_type']) ? $_GET['report_type'] : 'detail';  // detail, summary
@@ -360,8 +360,10 @@ $conn->close();
                     <label for="time_type">ประเภทเวลา</label>
                     <select id="time_type" name="time_type">
                         <option value="ALL" <?= $time_type === 'ALL' ? 'selected' : ''; ?>>ทุกช่วงเวลา</option>
-                        <option value="IN_TIME" <?= $time_type === 'IN_TIME' ? 'selected' : ''; ?>>ในเวลา (<= 16:00)</option>
-                        <option value="OUT_TIME" <?= $time_type === 'OUT_TIME' ? 'selected' : ''; ?>>นอกเวลา (> 16:00)</option>
+                        <option value="IN_TIME" <?= $time_type === 'IN_TIME' ? 'selected' : ''; ?>>ในเวลา (<=
+                                16:00)</option>
+                        <option value="OUT_TIME" <?= $time_type === 'OUT_TIME' ? 'selected' : ''; ?>>นอกเวลา (> 16:00)
+                        </option>
                     </select>
                 </div>
                 <div class="filter-group">
