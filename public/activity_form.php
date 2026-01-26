@@ -354,7 +354,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 $uid = $_SESSION['user_id'];
 
                                 $stmt_header->bind_param(
-                                    'sssssssii',
+                                    'ssssssisi',
                                     $hn,
                                     $vn,
                                     $cid,
@@ -856,78 +856,79 @@ $connMain->close();
 
 <!-- Modal เลือก Visit (แสดงเมื่อมีหลาย visits) -->
 <?php if ($show_visit_modal && count($patient_visits) > 1): ?>
-<div class="visit-modal-overlay" id="visitModalOverlay">
-    <div class="visit-modal">
-        <div class="visit-modal-header">
-            🏥 เลือก Visit ที่ต้องการบันทึกกิจกรรม
-        </div>
-        <div class="visit-modal-body">
-            <div class="visit-modal-info">
-                ⚠️ ผู้ป่วย <strong><?= htmlspecialchars($patient_visits[0]['patient_name']); ?></strong> 
-                (HN: <?= htmlspecialchars($patient_visits[0]['hn']); ?>) 
-                มี <?= count($patient_visits); ?> visits ในวันนี้ กรุณาเลือก visit ที่ต้องการบันทึกกิจกรรม
+    <div class="visit-modal-overlay" id="visitModalOverlay">
+        <div class="visit-modal">
+            <div class="visit-modal-header">
+                🏥 เลือก Visit ที่ต้องการบันทึกกิจกรรม
             </div>
-            
-            <form method="post" action="activity_form.php" id="selectVisitForm">
-                <input type="hidden" name="form_action" value="select_visit">
-                <input type="hidden" name="hn" value="<?= htmlspecialchars($search_hn); ?>">
-                <input type="hidden" name="category_code" value="<?= htmlspecialchars($selected_category_code); ?>">
-                <input type="hidden" name="selected_vn" id="selectedVn" value="">
-                
-                <?php foreach ($patient_visits as $index => $visit): ?>
-                <div class="visit-option" data-vn="<?= htmlspecialchars($visit['vn']); ?>">
-                    <div class="visit-option-radio"></div>
-                    <div class="visit-option-content">
-                        <div class="visit-option-vn">VN: <?= htmlspecialchars($visit['vn']); ?></div>
-                        <div class="visit-option-time">
-                            เวลา: <?= substr($visit['visit_time'], 0, 5); ?> น.
-                        </div>
-                    </div>
+            <div class="visit-modal-body">
+                <div class="visit-modal-info">
+                    ⚠️ ผู้ป่วย <strong><?= htmlspecialchars($patient_visits[0]['patient_name']); ?></strong>
+                    (HN: <?= htmlspecialchars($patient_visits[0]['hn']); ?>)
+                    มี <?= count($patient_visits); ?> visits ในวันนี้ กรุณาเลือก visit ที่ต้องการบันทึกกิจกรรม
                 </div>
-                <?php endforeach; ?>
-            </form>
-        </div>
-        <div class="visit-modal-footer">
-            <button type="button" class="btn-cancel-visit" onclick="closeVisitModal()">ยกเลิก</button>
-            <button type="button" class="btn-confirm-visit" id="confirmVisitBtn" disabled onclick="confirmVisitSelection()">
-                ยืนยันการเลือก
-            </button>
+
+                <form method="post" action="activity_form.php" id="selectVisitForm">
+                    <input type="hidden" name="form_action" value="select_visit">
+                    <input type="hidden" name="hn" value="<?= htmlspecialchars($search_hn); ?>">
+                    <input type="hidden" name="category_code" value="<?= htmlspecialchars($selected_category_code); ?>">
+                    <input type="hidden" name="selected_vn" id="selectedVn" value="">
+
+                    <?php foreach ($patient_visits as $index => $visit): ?>
+                        <div class="visit-option" data-vn="<?= htmlspecialchars($visit['vn']); ?>">
+                            <div class="visit-option-radio"></div>
+                            <div class="visit-option-content">
+                                <div class="visit-option-vn">VN: <?= htmlspecialchars($visit['vn']); ?></div>
+                                <div class="visit-option-time">
+                                    เวลา: <?= substr($visit['visit_time'], 0, 5); ?> น.
+                                </div>
+                            </div>
+                        </div>
+                    <?php endforeach; ?>
+                </form>
+            </div>
+            <div class="visit-modal-footer">
+                <button type="button" class="btn-cancel-visit" onclick="closeVisitModal()">ยกเลิก</button>
+                <button type="button" class="btn-confirm-visit" id="confirmVisitBtn" disabled
+                    onclick="confirmVisitSelection()">
+                    ยืนยันการเลือก
+                </button>
+            </div>
         </div>
     </div>
-</div>
 
-<script>
-    // จัดการการเลือก visit ใน modal
-    document.querySelectorAll('.visit-option').forEach(option => {
-        option.addEventListener('click', function() {
-            // ลบ selected จากทุกตัว
-            document.querySelectorAll('.visit-option').forEach(o => o.classList.remove('selected'));
-            // เพิ่ม selected ให้ตัวที่คลิก
-            this.classList.add('selected');
-            // อัพเดท hidden input
-            document.getElementById('selectedVn').value = this.dataset.vn;
-            // เปิดใช้งานปุ่มยืนยัน
-            document.getElementById('confirmVisitBtn').disabled = false;
+    <script>
+        // จัดการการเลือก visit ใน modal
+        document.querySelectorAll('.visit-option').forEach(option => {
+            option.addEventListener('click', function () {
+                // ลบ selected จากทุกตัว
+                document.querySelectorAll('.visit-option').forEach(o => o.classList.remove('selected'));
+                // เพิ่ม selected ให้ตัวที่คลิก
+                this.classList.add('selected');
+                // อัพเดท hidden input
+                document.getElementById('selectedVn').value = this.dataset.vn;
+                // เปิดใช้งานปุ่มยืนยัน
+                document.getElementById('confirmVisitBtn').disabled = false;
+            });
         });
-    });
 
-    function confirmVisitSelection() {
-        const selectedVn = document.getElementById('selectedVn').value;
-        if (selectedVn) {
-            document.getElementById('selectVisitForm').submit();
+        function confirmVisitSelection() {
+            const selectedVn = document.getElementById('selectedVn').value;
+            if (selectedVn) {
+                document.getElementById('selectVisitForm').submit();
+            }
         }
-    }
 
-    function closeVisitModal() {
-        document.getElementById('visitModalOverlay').style.display = 'none';
-        // clear HN input และ focus
-        const hnInput = document.getElementById('hn');
-        if (hnInput) {
-            hnInput.value = '';
-            hnInput.focus();
+        function closeVisitModal() {
+            document.getElementById('visitModalOverlay').style.display = 'none';
+            // clear HN input และ focus
+            const hnInput = document.getElementById('hn');
+            if (hnInput) {
+                hnInput.value = '';
+                hnInput.focus();
+            }
         }
-    }
-</script>
+    </script>
 <?php endif; ?>
 
 <div class="activity-form-container">
