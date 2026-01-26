@@ -368,8 +368,13 @@ $conn->close();
 
 <script>
     $(document).ready(function () {
+        // Check for 'search' param
+        const urlParams = new URLSearchParams(window.location.search);
+        const searchParam = urlParams.get('search');
+
         // 1. Init DataTables
         $('#activityTable').DataTable({
+            search: { search: searchParam || "" },
             pageLength: 25,
             order: [[1, 'desc'], [2, 'desc']],
             language: {

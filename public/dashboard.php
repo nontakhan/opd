@@ -11,14 +11,36 @@ require_once '../includes/navbar.php';
 $conn = getMainDBConnection();
 
 $today = date('Y-m-d');
-$startWeek = date('Y-m-d', strtotime('-6 days'));
-$startMonth = date('Y-m-d', strtotime('-29 days'));
+
+// รับค่า Filter
+$filter_start = $_GET['start_date'] ?? '';
+$filter_end = $_GET['end_date'] ?? '';
+$is_filtered = (!empty($filter_start) && !empty($filter_end));
+
+// --- กำหนดช่วงเวลาสำหรับส่วนต่างๆ ---
+
+// 1. ส่วน Card ตัวเลข (ปกติ: วันนี้ / Filter: ตามช่วง)
+$stats_start = $is_filtered ? $filter_start : $today;
+$stats_end = $is_filtered ? $filter_end : $today;
+
+// 2. กราฟเทรนด์รายวัน (ปกติ: 7 วัน / Filter: ตามช่วง)
+$daily_start = $is_filtered ? $filter_start : date('Y-m-d', strtotime('-6 days'));
+$daily_end = $is_filtered ? $filter_end : $today;
+
+// 3. กราฟวงกลม & Top 5 (ปกติ: 30 วัน / Filter: ตามช่วง)
+$trend_start = $is_filtered ? $filter_start : date('Y-m-d', strtotime('-29 days'));
+$trend_end = $is_filtered ? $filter_end : $today;
+
+// Label แสดงหัวข้อ
+$stats_label = $is_filtered ? "ช่วงวันที่ " . date('d/m/Y', strtotime($stats_start)) . " - " . date('d/m/Y', strtotime($stats_end)) : "วันนี้ (" . date('d/m/Y') . ")";
+$daily_label = $is_filtered ? "ช่วงวันที่ " . date('d/m/Y', strtotime($daily_start)) . " - " . date('d/m/Y', strtotime($daily_end)) : "7 วันย้อนหลัง";
+$trend_label = $is_filtered ? "ช่วงวันที่ " . date('d/m/Y', strtotime($trend_start)) . " - " . date('d/m/Y', strtotime($trend_end)) : "30 วันล่าสุด";
 
 // 1) จำนวนการบันทึกวันนี้ทั้งหมด
 $total_today = 0;
-$sql = "SELECT COUNT(*) AS total FROM patient_activity_header WHERE visit_date = ?";
+$sql = "SELECT COUNT(*) AS total FROM patient_activity_header WHERE visit_date BETWEEN ? AND ?";
 if ($stmt = $conn->prepare($sql)) {
-    $stmt->bind_param('s', $today);
+    $stmt->bind_param('ss', $stats_start, $stats_end);
     $stmt->execute();
     $res = $stmt->get_result();
     if ($row = $res->fetch_assoc()) {
@@ -34,11 +56,11 @@ $sql = "
     SELECT ac.code, ac.name, COUNT(h.id) AS total
     FROM patient_activity_header h
     INNER JOIN activity_categories ac ON ac.id = h.category_id
-    WHERE h.visit_date = ?
+    WHERE h.visit_date BETWEEN ? AND ?
     GROUP BY ac.id, ac.code, ac.name
 ";
 if ($stmt = $conn->prepare($sql)) {
-    $stmt->bind_param('s', $today);
+    $stmt->bind_param('ss', $stats_start, $stats_end);
     $stmt->execute();
     $res = $stmt->get_result();
     while ($row = $res->fetch_assoc()) {
@@ -53,15 +75,22 @@ if ($stmt = $conn->prepare($sql)) {
 $opd_today = $cat_today['OPD']['total'] ?? 0;
 $inj_today = $cat_today['INJ']['total'] ?? 0;
 
-// 3) กราฟ 7 วันย้อนหลัง (นับ header ต่อวัน)
+// 3) กราฟรายวัน (Daily Chart)
 $daily_labels = [];
 $daily_data = [];
-// เตรียม array วันที่ให้ครบ 7 วันก่อน
-for ($i = 6; $i >= 0; $i--) {
-    $d = date('Y-m-d', strtotime("-{$i} days"));
-    $daily_labels[$d] = date('d/m', strtotime($d));
-    $daily_data[$d] = 0;
+
+// Generate date range for chart
+$current_d = strtotime($daily_start);
+$last_d = strtotime($daily_end);
+
+while ($current_d <= $last_d) {
+    $d_str = date('Y-m-d', $current_d);
+    // Label format: d/m
+    $daily_labels[$d_str] = date('d/m', $current_d);
+    $daily_data[$d_str] = 0;
+    $current_d = strtotime('+1 day', $current_d);
 }
+$chart_daily_keys = array_keys($daily_labels); // keys Y-m-d for drill-down
 $sql = "
     SELECT visit_date, COUNT(*) AS total
     FROM patient_activity_header
@@ -70,7 +99,7 @@ $sql = "
     ORDER BY visit_date
 ";
 if ($stmt = $conn->prepare($sql)) {
-    $stmt->bind_param('ss', $startWeek, $today);
+    $stmt->bind_param('ss', $daily_start, $daily_end);
     $stmt->execute();
     $res = $stmt->get_result();
     while ($row = $res->fetch_assoc()) {
@@ -88,6 +117,7 @@ $chart_daily_data = array_values($daily_data);
 // 4) กราฟสัดส่วนตามประเภท (เดือนล่าสุด)
 $pie_labels = [];
 $pie_data = [];
+$pie_codes = []; // To store codes for drill-down
 $sql = "
     SELECT ac.name AS category_name, ac.code AS category_code, COUNT(h.id) AS total
     FROM patient_activity_header h
@@ -96,12 +126,13 @@ $sql = "
     GROUP BY ac.id, ac.name, ac.code
 ";
 if ($stmt = $conn->prepare($sql)) {
-    $stmt->bind_param('ss', $startMonth, $today);
+    $stmt->bind_param('ss', $trend_start, $trend_end);
     $stmt->execute();
     $res = $stmt->get_result();
     while ($row = $res->fetch_assoc()) {
         $pie_labels[] = $row['category_name'];
         $pie_data[] = (int) $row['total'];
+        $pie_codes[] = $row['category_code'];
     }
     $res->free();
     $stmt->close();
@@ -121,7 +152,7 @@ $sql = "
     LIMIT 5
 ";
 if ($stmt = $conn->prepare($sql)) {
-    $stmt->bind_param('ss', $startMonth, $today);
+    $stmt->bind_param('ss', $trend_start, $trend_end);
     $stmt->execute();
     $res = $stmt->get_result();
     while ($row = $res->fetch_assoc()) {
@@ -314,6 +345,40 @@ $conn->close();
             วันที่วันนี้: <?= date('d/m/Y'); ?> (ข้อมูลจากระบบบันทึกกิจกรรม)
         </div>
 
+        <!-- ฟอร์ม Filter และ Auto Refresh -->
+        <div
+            style="margin-bottom: 20px; background: #fff; padding: 15px 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); border: 1px solid #e5e7eb;">
+            <form method="GET" action="" style="display: flex; gap: 20px; align-items: flex-end; flex-wrap: wrap;">
+                <div>
+                    <label
+                        style="font-size: 0.85rem; font-weight: 600; color: #64748b; margin-bottom: 4px; display:block;">วันที่เริ่ม</label>
+                    <input type="date" name="start_date" value="<?= htmlspecialchars($filter_start) ?>"
+                        style="padding: 6px 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-family: inherit;">
+                </div>
+                <div>
+                    <label
+                        style="font-size: 0.85rem; font-weight: 600; color: #64748b; margin-bottom: 4px; display:block;">วันที่สิ้นสุด</label>
+                    <input type="date" name="end_date" value="<?= htmlspecialchars($filter_end) ?>"
+                        style="padding: 6px 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-family: inherit;">
+                </div>
+                <div style="flex-grow: 1;">
+                    <button type="submit" class="btn-primary"
+                        style="background: #2563eb; color: #fff; border: none; padding: 7px 20px; border-radius: 6px; cursor: pointer; font-family: inherit; font-size: 0.9rem;">กรองข้อมูล</button>
+                    <?php if ($is_filtered): ?>
+                        <a href="dashboard.php"
+                            style="margin-left: 12px; color: #64748b; font-size: 0.9rem; text-decoration: none;">ล้างค่า</a>
+                    <?php endif; ?>
+                </div>
+                <div
+                    style="display: flex; align-items: center; gap: 8px; background: #f1f5f9; padding: 6px 12px; border-radius: 6px;">
+                    <input type="checkbox" id="autoRefreshToggle" style="width: 16px; height: 16px; cursor: pointer;">
+                    <label for="autoRefreshToggle"
+                        style="font-size: 0.9rem; color: #475569; cursor: pointer; font-weight:500;">Auto Refresh (1
+                        min)</label>
+                </div>
+            </form>
+        </div>
+
         <!-- การ์ดสรุปด้านบน -->
         <div class="stats-grid">
             <div class="stat-card">
@@ -418,16 +483,46 @@ $conn->close();
     // ข้อมูลจาก PHP
     const dailyLabels = <?= json_encode($chart_daily_labels, JSON_UNESCAPED_UNICODE); ?>;
     const dailyData = <?= json_encode($chart_daily_data, JSON_UNESCAPED_UNICODE); ?>;
+    const dailyKeys = <?= json_encode($chart_daily_keys, JSON_UNESCAPED_UNICODE); ?>; // Y-m-d
+
     const pieLabels = <?= json_encode($pie_labels, JSON_UNESCAPED_UNICODE); ?>;
     const pieData = <?= json_encode($pie_data, JSON_UNESCAPED_UNICODE); ?>;
+    const pieCodes = <?= json_encode($pie_codes, JSON_UNESCAPED_UNICODE); ?>;
+
     const topLabels = <?= json_encode($top_labels, JSON_UNESCAPED_UNICODE); ?>;
     const topData = <?= json_encode($top_data, JSON_UNESCAPED_UNICODE); ?>;
 
-    document.addEventListener('DOMContentLoaded', function () {
-        // Default global options for datalabels (optional)
-        // Chart.defaults.set('plugins.datalabels', { ... });
+    // Filter params for drill-down
+    const filterStart = '<?= $filter_start ?>';
+    const filterEnd = '<?= $filter_end ?>';
 
-        // กราฟเส้น/แท่ง 7 วัน
+    document.addEventListener('DOMContentLoaded', function () {
+        // --- Auto Refresh Logic ---
+        const btnRefresh = document.getElementById('autoRefreshToggle');
+        const savedRefresh = localStorage.getItem('dashboard_autorefresh') === 'true';
+        if (btnRefresh) {
+            btnRefresh.checked = savedRefresh;
+            let refreshInterval;
+
+            function setRefresh(enabled) {
+                if (refreshInterval) clearInterval(refreshInterval);
+                if (enabled) {
+                    console.log('Auto refresh started');
+                    refreshInterval = setInterval(() => window.location.reload(), 60000);
+                }
+            }
+            setRefresh(savedRefresh);
+
+            btnRefresh.addEventListener('change', (e) => {
+                const isChecked = e.target.checked;
+                localStorage.setItem('dashboard_autorefresh', isChecked);
+                setRefresh(isChecked);
+            });
+        }
+
+        // --- Chart Configs ---
+
+        // กราฟเส้น/แท่ง รายวัน
         const ctxDaily = document.getElementById('dailyChart').getContext('2d');
         new Chart(ctxDaily, {
             type: 'line',
@@ -443,10 +538,28 @@ $conn->close();
             },
             options: {
                 responsive: true,
+                layout: {
+                    padding: {
+                        top: 10
+                    }
+                },
+                onClick: (e, activeEls) => {
+                    if (activeEls.length > 0) {
+                        const index = activeEls[0].index;
+                        const date = dailyKeys[index]; // Y-m-d
+                        if (date) {
+                            window.location.href = `activity_list.php?start_date=${date}&end_date=${date}`;
+                        }
+                    }
+                },
+                onHover: (e, activeEls) => {
+                    e.native.target.style.cursor = activeEls.length > 0 ? 'pointer' : 'default';
+                },
                 scales: {
                     y: {
                         beginAtZero: true,
-                        ticks: { stepSize: 1 }
+                        ticks: { stepSize: 1 },
+                        grace: '20%' // Add space at top for labels
                     }
                 },
                 plugins: {
@@ -456,7 +569,7 @@ $conn->close();
                         color: '#1d4ed8',
                         font: { weight: 'bold' },
                         formatter: function (value) {
-                            return value > 0 ? value : ''; // Show only if > 0 if preferred, or just return value
+                            return value > 0 ? value : '';
                         }
                     }
                 }
@@ -476,22 +589,44 @@ $conn->close();
             },
             options: {
                 responsive: true,
-                layout: {
-                    padding: 20
+                layout: { padding: 20 },
+                onClick: (e, activeEls) => {
+                    if (activeEls.length > 0) {
+                        const index = activeEls[0].index;
+                        const code = pieCodes[index];
+                        if (code) {
+                            let url = `activity_list.php?category=${code}`;
+                            // If global filter is active, assume user wants to keep that range
+                            // or default to month/year? 
+                            // Let's pass the current applied filter if exists
+                            if (filterStart && filterEnd) {
+                                url += `&start_date=${filterStart}&end_date=${filterEnd}`;
+                            } else {
+                                // If no filter, maybe default to "Last 30 Days" which is what Pie Chart shows?
+                                // Or just let activity_list default to Today?
+                                // Better: pass the range that Pie Chart is showing (Last 30D)
+                                // But getting PHP vars here is tricky.
+                                // Let's just pass nothing and let activity_list default to Today (safest/cleanest), 
+                                // OR pass the known Pie Chart range.
+                                // The Pie Chart shows "Last 30 Days". Ideally we should pass that range.
+                                // But for simplicity, let's just pass category. User can adjust date.
+                            }
+                            window.location.href = url;
+                        }
+                    }
+                },
+                onHover: (e, activeEls) => {
+                    e.native.target.style.cursor = activeEls.length > 0 ? 'pointer' : 'default';
                 },
                 plugins: {
-                    legend: {
-                        position: 'bottom'
-                    },
+                    legend: { position: 'bottom' },
                     datalabels: {
                         color: '#fff',
                         font: { weight: 'bold' },
                         formatter: (value, ctx) => {
                             let sum = 0;
                             let dataArr = ctx.chart.data.datasets[0].data;
-                            dataArr.map(data => {
-                                sum += data;
-                            });
+                            dataArr.map(data => { sum += data; });
                             let percentage = (value * 100 / sum).toFixed(1) + "%";
                             return value + ' (' + percentage + ')';
                         },
@@ -520,10 +655,25 @@ $conn->close();
             options: {
                 indexAxis: 'y',
                 responsive: true,
-                layout: {
-                    padding: {
-                        right: 40 // Add padding to ensure label fits
+                layout: { padding: { right: 40 } },
+                onClick: (e, activeEls) => {
+                    if (activeEls.length > 0) {
+                        const index = activeEls[0].index;
+                        const name = topLabels[index]; // Activity Name
+                        // Pass name to search param (we will implement simple client-side search or server search later)
+                        // DataTables in activity_list has search box. We can pre-fill it via JS if we pass ?search=...
+                        // Let's try passing ?search=name
+                        if (name) {
+                            let url = `activity_list.php?search=${encodeURIComponent(name)}`;
+                            if (filterStart && filterEnd) {
+                                url += `&start_date=${filterStart}&end_date=${filterEnd}`;
+                            }
+                            window.location.href = url;
+                        }
                     }
+                },
+                onHover: (e, activeEls) => {
+                    e.native.target.style.cursor = activeEls.length > 0 ? 'pointer' : 'default';
                 },
                 scales: {
                     x: {
